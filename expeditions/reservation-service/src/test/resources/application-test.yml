@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:reservation-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
+    username: sa
+    password: ""
+  kafka:
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
+
+expeditions:
+  admission:
+    secret: test-admission-secret-0123456789abcdef
+  outbox:
+    relay-enabled: false
+
+reservation:
+  # the tests drive time with a MutableClock and call sweep() themselves
+  sweeper-enabled: false

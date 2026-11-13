@@ -1,0 +1,37 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: reservation
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/reservation}
+    username: ${DB_USER:guild}
+    password: ${DB_PASSWORD:guild}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration,classpath:db/outbox
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+    consumer:
+      auto-offset-reset: earliest
+
+expeditions:
+  admission:
+    # Shared with the queue, which signs admissions. 32+ bytes.
+    secret: ${ADMISSION_SECRET:local-admission-secret-change-me-0123456789}
+
+reservation:
+  hold-ttl: ${HOLD_TTL:PT10M}
+  ready-check: ${READY_CHECK:PT60S}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

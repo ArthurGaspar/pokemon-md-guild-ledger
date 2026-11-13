@@ -1,0 +1,29 @@
+server:
+  port: ${PORT:8082}
+
+spring:
+  application:
+    name: queue
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+
+expeditions:
+  admission:
+    # Shared with reservation, which checks admissions. 32+ bytes.
+    secret: ${ADMISSION_SECRET:local-admission-secret-change-me-0123456789}
+
+queue:
+  admission-ttl: ${ADMISSION_TTL:PT2M}
+  batch: ${ADMIT_BATCH:200}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
