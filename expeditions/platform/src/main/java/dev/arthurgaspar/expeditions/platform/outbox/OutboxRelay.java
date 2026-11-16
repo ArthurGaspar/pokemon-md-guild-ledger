@@ -14,16 +14,21 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import dev.arthurgaspar.expeditions.platform.tracing.TraceContext;
+
 /**
  * Publishes committed outbox rows to Kafka, oldest first. Rows are locked with {@code SKIP LOCKED}, so several
  * instances can relay without sending the same row twice at the same moment; a crash between the send and the
  * update can still send a row twice, which is why consumers deduplicate.
+ * <p>
+ * Each send runs in a span that continues the trace the event was written in, so Kafka's producer instrumentation
+ * puts that trace in the record headers and the consumer carries on with it.
  */
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
 
-    private record Row(long id, String topic, String key, String payload) {}
+    private record Row(long id, String topic, String key, String type, String payload, String traceParent) {}
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
@@ -31,15 +36,18 @@ public class OutboxRelay {
     private final Clock clock;
     private final int batchSize;
     private final Duration retention;
+    private final TraceContext traces;
 
+    /** @param traces null when tracing is off */
     public OutboxRelay(JdbcTemplate jdbc, TransactionTemplate tx, KafkaTemplate<String, String> kafka, Clock clock,
-                       int batchSize, Duration retention) {
+                       int batchSize, Duration retention, TraceContext traces) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.kafka = kafka;
         this.clock = clock;
         this.batchSize = batchSize;
         this.retention = retention;
+        this.traces = traces;
     }
 
     @Scheduled(fixedDelayString = "${expeditions.outbox.relay-interval:200ms}")
@@ -57,15 +65,16 @@ public class OutboxRelay {
 
     private int relayBatch() {
         List<Row> rows = jdbc.query("""
-                select id, topic, message_key, payload from outbox
+                select id, topic, message_key, event_type, payload, trace_parent from outbox
                 where published_at is null order by id limit ? for update skip locked""",
-                (rs, i) -> new Row(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)), batchSize);
+                (rs, i) -> new Row(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                        rs.getString(6)), batchSize);
         if (rows.isEmpty()) {
             return 0;
         }
         // the idempotent producer keeps per-partition order even with these sends in flight together
         CompletableFuture<?>[] sends = rows.stream()
-                .map(r -> kafka.send(r.topic(), r.key(), r.payload()))
+                .map(this::send)
                 .toArray(CompletableFuture[]::new);
         try {
             CompletableFuture.allOf(sends).get(10, TimeUnit.SECONDS);
@@ -76,6 +85,13 @@ public class OutboxRelay {
         jdbc.batchUpdate("update outbox set published_at = ? where id = ?",
                 rows.stream().map(r -> new Object[] {now, r.id()}).toList());
         return rows.size();
+    }
+
+    private CompletableFuture<?> send(Row r) {
+        if (traces == null || r.traceParent() == null) {
+            return kafka.send(r.topic(), r.key(), r.payload());
+        }
+        return traces.inSpan("outbox " + r.type(), r.traceParent(), () -> kafka.send(r.topic(), r.key(), r.payload()));
     }
 
     @Scheduled(fixedDelayString = "${expeditions.outbox.cleanup-interval:10m}")

@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:processing-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  kafka:
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
+
+expeditions:
+  auth:
+    mode: dev-headers
+  outbox:
+    relay-enabled: false
+
+processing:
+  # tests drive attempts themselves
+  worker-enabled: false
+  sim:
+    url: http://localhost:1
+
+resilience4j:
+  retry:
+    instances:
+      dungeon-sim:
+        wait-duration: 5ms
+  circuitbreaker:
+    instances:
+      dungeon-sim:
+        wait-duration-in-open-state: 1h
+        automatic-transition-from-open-to-half-open-enabled: false

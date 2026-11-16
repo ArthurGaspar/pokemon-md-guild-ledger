@@ -12,5 +12,7 @@ catalog:
     enabled: false
 
 expeditions:
+  auth:
+    mode: dev-headers
   outbox:
     relay-enabled: false

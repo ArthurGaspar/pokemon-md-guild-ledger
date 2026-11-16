@@ -21,12 +21,17 @@ import jakarta.persistence.Table;
 public class Reservation {
 
     public enum Status {
-        HELD, CONFIRMED, LOCKED,
-        EXPIRED, DECLINED, CANCELLED;
+        HELD, CONFIRMED, LOCKED, COMPLETED, FAILED,
+        EXPIRED, DECLINED, CANCELLED, ABORTED;
 
-        /** Occupies a slot. The rest are closed and keep the slot free. */
+        /** Occupies a slot. The rest are closed and leave the slot free. */
         public boolean active() {
-            return this == HELD || this == CONFIRMED || this == LOCKED;
+            return this == HELD || this == CONFIRMED || setOut();
+        }
+
+        /** The party left on the expedition; the reservation can no longer be cancelled. */
+        public boolean setOut() {
+            return this == LOCKED || this == COMPLETED || this == FAILED;
         }
     }
 
@@ -95,8 +100,18 @@ public class Reservation {
         heldUntil = until;
     }
 
+    /** The run's outcome: COMPLETED or FAILED keep the slot used, ABORTED frees it. */
+    void finish(Status outcome, Instant now) {
+        require(Status.LOCKED);
+        if (outcome != Status.COMPLETED && outcome != Status.FAILED && outcome != Status.ABORTED) {
+            throw new IllegalArgumentException("A run can't end a reservation as " + outcome);
+        }
+        status = outcome;
+        closedAt = now;
+    }
+
     void close(Status outcome, Instant now) {
-        if (outcome.active() || !status.active() || status == Status.LOCKED) {
+        if (outcome.active() || !status.active() || status.setOut()) {
             throw new IllegalStateException("Reservation " + id + " can't go from " + status + " to " + outcome);
         }
         status = outcome;

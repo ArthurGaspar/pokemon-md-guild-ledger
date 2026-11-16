@@ -23,6 +23,10 @@
     <module>catalog-service</module>
     <module>queue-service</module>
     <module>reservation-service</module>
+    <module>dungeon-sim</module>
+    <module>processing-service</module>
+    <module>issuance-service</module>
+    <module>gateway</module>
   </modules>
 
   <properties>

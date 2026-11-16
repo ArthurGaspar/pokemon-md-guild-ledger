@@ -43,7 +43,7 @@ class ExpeditionApiTest {
 
     private org.springframework.test.web.servlet.ResultActions publish(String code, String dungeon, String composition)
             throws Exception {
-        return mvc.perform(post("/api/expeditions").header("X-Adventurer", "wigglytuff")
+        return mvc.perform(post("/api/expeditions").header("X-Adventurer", "wigglytuff").header("X-Roles", "guild-staff")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(BODY.formatted(code, dungeon, composition)));
     }
@@ -79,6 +79,16 @@ class ExpeditionApiTest {
         publish("dup-1", "sky-peak", "{\"TANK\":1,\"DAMAGE\":1}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("expedition.code-taken"));
+    }
+
+    @Test
+    void publishingNeedsTheStaffRole() throws Exception {
+        mvc.perform(post("/api/expeditions").header("X-Adventurer", "mira").header("X-Roles", "adventurer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.formatted("sneaky-1", "sky-peak", "{\"TANK\":2}")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("auth.forbidden"));
+        mvc.perform(get("/api/expeditions")).andExpect(status().isOk()); // reading is public
     }
 
     @Test

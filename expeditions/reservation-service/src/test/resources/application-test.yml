@@ -10,6 +10,8 @@ spring:
       auto-startup: false
 
 expeditions:
+  auth:
+    mode: dev-headers
   admission:
     secret: test-admission-secret-0123456789abcdef
   outbox:

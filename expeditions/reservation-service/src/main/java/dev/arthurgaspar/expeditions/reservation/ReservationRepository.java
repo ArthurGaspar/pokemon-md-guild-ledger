@@ -13,7 +13,8 @@ import dev.arthurgaspar.expeditions.reservation.Reservation.Status;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
-    Collection<Status> ACTIVE = EnumSet.of(Status.HELD, Status.CONFIRMED, Status.LOCKED);
+    /** One per adventurer per expedition, including a finished one: an expedition is run once. */
+    Collection<Status> ACTIVE = EnumSet.of(Status.HELD, Status.CONFIRMED, Status.LOCKED, Status.COMPLETED, Status.FAILED);
 
     @Query("select r.expeditionId from Reservation r where r.id = :id")
     Optional<Long> findExpeditionId(Long id);

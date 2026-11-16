@@ -5,6 +5,8 @@ public final class Topics {
 
     public static final String EXPEDITIONS = "expedition.events";
     public static final String RESERVATIONS = "reservation.events";
+    public static final String RUNS = "run.events";
+    public static final String ISSUANCE = "issuance.events";
 
     private Topics() {
     }

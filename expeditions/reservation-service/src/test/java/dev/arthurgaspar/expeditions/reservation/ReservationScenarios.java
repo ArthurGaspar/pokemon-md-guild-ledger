@@ -274,6 +274,67 @@ abstract class ReservationScenarios {
         confirm("someone-else", tank).andExpect(status().isNotFound());
     }
 
+    /** Four adventurers hold and confirm; returns the party id. */
+    long lockedParty(long exp, String prefix) throws Exception {
+        Map<String, Role> roles = Map.of(prefix + "-tank", Role.TANK, prefix + "-healer", Role.HEALER,
+                prefix + "-dps1", Role.DAMAGE, prefix + "-dps2", Role.DAMAGE);
+        Map<String, Long> ids = new java.util.HashMap<>();
+        for (var e : roles.entrySet()) {
+            ids.put(e.getKey(), hold(e.getKey(), exp, e.getValue()));
+        }
+        for (var e : ids.entrySet()) {
+            confirm(e.getKey(), e.getValue()).andExpect(status().isOk());
+        }
+        JsonNode r = reservation(prefix + "-tank", ids.get(prefix + "-tank"));
+        assertThat(r.at("/party/status").asString()).isEqualTo("LOCKED");
+        return r.at("/party/id").asLong();
+    }
+
+    @Test
+    void aClearedRunCompletesTheReservationsAndKeepsTheSlots() throws Exception {
+        long exp = openExpedition(1);
+        long party = lockedParty(exp, "win");
+        service.runFinished(exp, party, true);
+        service.runFinished(exp, party, true); // redelivered
+
+        mvc.perform(get("/api/reservations").header("X-Adventurer", "win-tank"))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[0].party.status").value("COMPLETED"));
+        assertThat(openSlots(exp)).isZero();
+        long other = openExpedition(1);
+        hold("win-tank", other, Role.TANK); // other expeditions are fine
+        tryHold("win-tank", exp, Role.TANK, token(exp, "win-tank")).andExpect(status().isConflict());
+    }
+
+    @Test
+    void aFaintedPartyFailsButTheExpeditionHappened() throws Exception {
+        long exp = openExpedition(1);
+        long party = lockedParty(exp, "lose");
+        service.runFinished(exp, party, false);
+        mvc.perform(get("/api/reservations").header("X-Adventurer", "lose-healer"))
+                .andExpect(jsonPath("$[0].status").value("FAILED"))
+                .andExpect(jsonPath("$[0].party.status").value("FAILED"));
+        assertThat(openSlots(exp)).isZero();
+    }
+
+    @Test
+    void anUnreachableDungeonReleasesThePartyAndReopensTheSlots() throws Exception {
+        long exp = openExpedition(1);
+        long party = lockedParty(exp, "lost");
+        service.runAborted(exp, party, "No answer from the dungeon after 9 attempts");
+        service.runAborted(exp, party, "again"); // redelivered: nothing more happens
+
+        assertThat(openSlots(exp)).isEqualTo(4);
+        assertThat(service.capacity(exp).parties()).containsEntry(Party.Status.FORMING, 1L);
+        mvc.perform(get("/api/reservations").header("X-Adventurer", "lost-dps1")).andExpect(jsonPath("$.length()").value(0));
+        Events.PartyReleased released = lastEvent(exp, Events.PARTY_RELEASED, Events.PartyReleased.class);
+        assertThat(released.released()).hasSize(4);
+        assertThat(eventTypes(exp).stream().filter(Events.PARTY_RELEASED::equals)).hasSize(1);
+
+        // they can line up and reserve again
+        hold("lost-dps1", exp, Role.DAMAGE);
+    }
+
     @Test
     void registeringTwiceIsHarmless() {
         long exp = openExpedition(3);

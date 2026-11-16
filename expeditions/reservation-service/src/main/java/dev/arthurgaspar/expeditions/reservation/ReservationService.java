@@ -21,6 +21,7 @@ import dev.arthurgaspar.expeditions.platform.events.Events.ExpeditionPublished;
 import dev.arthurgaspar.expeditions.platform.events.Events.Member;
 import dev.arthurgaspar.expeditions.platform.events.Events.PartyAssembled;
 import dev.arthurgaspar.expeditions.platform.events.Events.PartyLocked;
+import dev.arthurgaspar.expeditions.platform.events.Events.PartyReleased;
 import dev.arthurgaspar.expeditions.platform.events.Events.PartyReverted;
 import dev.arthurgaspar.expeditions.platform.events.Events.ReservationConfirmed;
 import dev.arthurgaspar.expeditions.platform.events.Events.ReservationHeld;
@@ -152,7 +153,7 @@ public class ReservationService {
     public View cancel(String adventurerId, long reservationId) {
         Locked locked = lockOwn(adventurerId, reservationId);
         Reservation r = locked.reservation();
-        if (r.getStatus() == Status.LOCKED) {
+        if (r.getStatus().setOut()) {
             throw ApiException.conflict("reservation.locked", "Your party has already set out");
         }
         if (!r.getStatus().active()) {
@@ -167,6 +168,35 @@ public class ReservationService {
             capacityChanged(locked.inventory());
         }
         return view(r);
+    }
+
+    /** From {@code run.completed}, or {@code run.failed} with {@code FAINTED}. Repeats find the party already finished. */
+    @Transactional
+    public void runFinished(long expeditionId, long partyId, boolean cleared) {
+        lock(expeditionId);
+        Party party = parties.findWithMembers(partyId).orElseThrow();
+        if (party.getStatus() == Party.Status.LOCKED) {
+            party.finish(cleared, clock.instant());
+        }
+    }
+
+    /**
+     * From {@code run.failed} with {@code UNAVAILABLE}: the compensation for a run that never got through. Every
+     * member's reservation is aborted, the slots go back to the queue, and the party starts forming again.
+     */
+    @Transactional
+    public void runAborted(long expeditionId, long partyId, String detail) {
+        ExpeditionInventory inventory = lock(expeditionId);
+        Party party = parties.findWithMembers(partyId).orElseThrow();
+        if (party.getStatus() != Party.Status.LOCKED) {
+            return;
+        }
+        List<Reservation> released = party.release(clock.instant());
+        released.forEach(r -> released(r, Status.ABORTED));
+        inventory.returnSlots(released.size());
+        capacityChanged(inventory);
+        emit(expeditionId, Events.PARTY_RELEASED, new PartyReleased(expeditionId, partyId,
+                released.stream().map(Reservation::getAdventurerId).toList(), detail));
     }
 
     /**
@@ -238,6 +268,10 @@ public class ReservationService {
 
     private void close(Reservation r, Status outcome) {
         r.close(outcome, clock.instant());
+        released(r, outcome);
+    }
+
+    private void released(Reservation r, Status outcome) {
         emit(r.getExpeditionId(), Events.RESERVATION_RELEASED, new ReservationReleased(r.getId(), r.getExpeditionId(),
                 r.getParty().getId(), r.getAdventurerId(), r.getRole(), outcome.name()));
     }

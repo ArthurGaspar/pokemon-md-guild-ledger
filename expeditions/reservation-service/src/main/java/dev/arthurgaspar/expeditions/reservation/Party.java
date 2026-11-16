@@ -27,7 +27,7 @@ import jakarta.persistence.Table;
 @Table(name = "parties")
 public class Party {
 
-    public enum Status { FORMING, ASSEMBLED, LOCKED }
+    public enum Status { FORMING, ASSEMBLED, LOCKED, COMPLETED, FAILED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -123,6 +123,27 @@ public class Party {
         this.status = Status.FORMING;
         this.readyBy = null;
         return kept;
+    }
+
+    /** The run cleared the dungeon ({@code COMPLETED}) or the party fainted ({@code FAILED}). */
+    void finish(boolean cleared, Instant now) {
+        require(Status.LOCKED);
+        members().forEach(r -> r.finish(cleared ? Reservation.Status.COMPLETED : Reservation.Status.FAILED, now));
+        this.status = cleared ? Status.COMPLETED : Status.FAILED;
+    }
+
+    /**
+     * The run never got through: everyone's reservation is aborted and the party starts over, empty.
+     *
+     * @return the reservations aborted
+     */
+    List<Reservation> release(Instant now) {
+        require(Status.LOCKED);
+        List<Reservation> released = members();
+        released.forEach(r -> r.finish(Reservation.Status.ABORTED, now));
+        this.status = Status.FORMING;
+        this.lockedAt = null;
+        return released;
     }
 
     public boolean readyCheckMissed(Instant now) {

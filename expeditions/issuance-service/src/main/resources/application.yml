@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:8086}
+
+spring:
+  application:
+    name: issuance
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/issuance}
+    username: ${DB_USER:guild}
+    password: ${DB_PASSWORD:guild}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration,classpath:db/outbox
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+    consumer:
+      auto-offset-reset: earliest
+  mvc:
+    async:
+      # SSE connections stay open; the emitter sets its own timeout
+      request-timeout: -1
+
+expeditions:
+  auth:
+    token-query-param: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

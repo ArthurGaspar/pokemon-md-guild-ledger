@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,8 +56,9 @@ public class ExpeditionController {
         return service.get(id);
     }
 
-    /** Guild staff only once Keycloak is in (phase 3); for now any identified caller. */
+    /** Guild staff only: the {@code guild-staff} realm role. */
     @PostMapping
+    @PreAuthorize("hasRole('guild-staff')")
     @ResponseStatus(HttpStatus.CREATED)
     View publish(Adventurer staff, @Valid @RequestBody PublishRequest r) {
         return service.publish(staff.id(), new Draft(r.code(), r.name(), r.dungeon(), r.difficulty(), r.opensAt(),

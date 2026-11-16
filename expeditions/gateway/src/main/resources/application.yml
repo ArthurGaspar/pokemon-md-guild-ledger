@@ -1,0 +1,72 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_ISSUER:http://localhost:8180/realms/guild}
+          jwk-set-uri: ${AUTH_JWKS:http://localhost:8180/realms/guild/protocol/openid-connect/certs}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # first match wins: the specific expedition sub-resources come before the catalog
+          routes:
+            - id: queue
+              uri: ${QUEUE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/expeditions/*/queue
+              filters:
+                # polling every couple of seconds is fine; hammering the line is not
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@adventurerKey}"
+            - id: reservation
+              uri: ${RESERVATION_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/expeditions/*/reservations,/api/expeditions/*/capacity,/api/reservations,/api/reservations/**
+            - id: processing
+              uri: ${PROCESSING_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/runs/**,/api/circuit,/api/expeditions/*/parties/**
+            - id: issuance
+              uri: ${ISSUANCE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/certificates,/api/notifications,/api/notifications/**
+            - id: catalog
+              uri: ${CATALOG_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/expeditions,/api/expeditions/*
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      otlp:
+        enabled: ${OTLP_EXPORT:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTLP_EXPORT:false}
+        url: ${OTLP_ENDPOINT:http://localhost:4318}/v1/metrics
+  endpoints:
+    web:
+      exposure:
+        include: health,gateway

@@ -1,0 +1,79 @@
+{
+  "realm": "guild",
+  "displayName": "Guild Expeditions",
+  "enabled": true,
+  "registrationAllowed": false,
+  "editUsernameAllowed": false,
+  "accessTokenLifespan": 900,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      { "name": "adventurer", "description": "Lines up for expeditions and joins parties" },
+      { "name": "guild-staff", "description": "Publishes expeditions" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "expeditions",
+      "name": "Guild Expeditions",
+      "description": "Public client. Password grant is enabled for the demo script and the load test only; a browser client would use the authorization code flow with PKCE, also enabled.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:*"],
+      "webOrigins": ["+"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ],
+  "users": [
+    {
+      "username": "wigglytuff", "firstName": "Wigglytuff", "lastName": "Guildmaster", "email": "wigglytuff@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["guild-staff", "adventurer"]
+    },
+    {
+      "username": "chatot", "firstName": "Chatot", "lastName": "Guild", "email": "chatot@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["guild-staff"]
+    },
+    {
+      "username": "mira", "firstName": "Mira", "lastName": "Riolu", "email": "mira@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    },
+    {
+      "username": "teo", "firstName": "Teo", "lastName": "Totodile", "email": "teo@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    },
+    {
+      "username": "sol", "firstName": "Sol", "lastName": "Chikorita", "email": "sol@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    },
+    {
+      "username": "nina", "firstName": "Nina", "lastName": "Piplup", "email": "nina@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    },
+    {
+      "username": "kai", "firstName": "Kai", "lastName": "Chimchar", "email": "kai@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    },
+    {
+      "username": "ines", "firstName": "Ines", "lastName": "Cyndaquil", "email": "ines@guild.test",
+      "emailVerified": true, "enabled": true,
+      "credentials": [{ "type": "password", "value": "lantern-123", "temporary": false }],
+      "realmRoles": ["adventurer"]
+    }
+  ]
+}

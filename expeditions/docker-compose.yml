@@ -1,6 +1,8 @@
-# Guild Expeditions, phase 1: catalog, queue and reservation on PostgreSQL, Redis and Kafka.
+# Guild Expeditions: the services behind a gateway, with Keycloak, PostgreSQL, Redis, Kafka and Grafana LGTM.
 #   docker compose -f expeditions/docker-compose.yml up --build
-# Catalog :8081  Queue :8082  Reservation :8083  Kafka UI :8090
+# Gateway :8080 (use this)  Keycloak :8180  Grafana :3000  Kafka UI :8090
+# Services, for debugging (they still want a token): catalog :8081 queue :8082 reservation :8083 processing :8084
+#   dungeon-sim :8085 issuance :8086
 x-service-build: &service-build
   context: ..
   dockerfile: expeditions/Dockerfile
@@ -10,6 +12,11 @@ x-service-env: &service-env
   DB_USER: guild
   DB_PASSWORD: guild
   ADMISSION_SECRET: ${ADMISSION_SECRET:-compose-admission-secret-change-me-0123456789}
+  # tokens say they come from localhost:8180 (where people log in); keys are fetched inside the network
+  AUTH_ISSUER: http://localhost:8180/realms/guild
+  AUTH_JWKS: http://keycloak:8080/realms/guild/protocol/openid-connect/certs
+  OTLP_EXPORT: "true"
+  OTLP_ENDPOINT: http://lgtm:4318
 
 services:
   postgres:
@@ -53,6 +60,55 @@ services:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null"]
       interval: 5s
       retries: 20
+
+  keycloak:
+    image: keycloak/keycloak:26.8.2
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8180:8080"
+    healthcheck:
+      # the image has no curl; ask the management port over bash's /dev/tcp
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      retries: 40
+
+  # OpenTelemetry collector + Tempo (traces) + Loki (logs) + Prometheus (metrics) + Grafana, in one container
+  lgtm:
+    image: grafana/otel-lgtm:0.41.0
+    ports:
+      - "3000:3000"
+
+  gateway:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: gateway
+    environment:
+      AUTH_ISSUER: http://localhost:8180/realms/guild
+      AUTH_JWKS: http://keycloak:8080/realms/guild/protocol/openid-connect/certs
+      REDIS_HOST: redis
+      CATALOG_URL: http://catalog:8081
+      QUEUE_URL: http://queue:8082
+      RESERVATION_URL: http://reservation:8083
+      PROCESSING_URL: http://processing:8084
+      ISSUANCE_URL: http://issuance:8086
+      OTLP_EXPORT: "true"
+      OTLP_ENDPOINT: http://lgtm:4318
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
 
   kafka-ui:
     image: kafbat/kafka-ui:latest
@@ -109,6 +165,57 @@ services:
       READY_CHECK: ${READY_CHECK:-PT60S}
     ports:
       - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  dungeon-sim:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: dungeon-sim
+    environment:
+      SIM_LATENCY_MS: ${SIM_LATENCY_MS:-300}
+      SIM_ERROR_RATE: ${SIM_ERROR_RATE:-0.2}
+      SIM_SLOW_RATE: ${SIM_SLOW_RATE:-0.1}
+      SIM_FAINT_RATE: ${SIM_FAINT_RATE:-0.25}
+      OTLP_EXPORT: "true"
+      OTLP_ENDPOINT: http://lgtm:4318
+    ports:
+      - "8085:8085"
+
+  processing:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: processing-service
+    environment:
+      <<: *service-env
+      DB_URL: jdbc:postgresql://postgres:5432/processing
+      SIM_URL: http://dungeon-sim:8085
+      RUN_DEADLINE: ${RUN_DEADLINE:-PT2M}
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      dungeon-sim:
+        condition: service_started
+
+  issuance:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: issuance-service
+    environment:
+      <<: *service-env
+      DB_URL: jdbc:postgresql://postgres:5432/issuance
+    ports:
+      - "8086:8086"
     depends_on:
       postgres:
         condition: service_healthy

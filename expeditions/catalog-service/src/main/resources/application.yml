@@ -19,6 +19,10 @@ spring:
     producer:
       acks: all
 
+expeditions:
+  auth:
+    public-get-paths: /api/expeditions, /api/expeditions/*
+
 catalog:
   seed:
     enabled: ${CATALOG_SEED:true}

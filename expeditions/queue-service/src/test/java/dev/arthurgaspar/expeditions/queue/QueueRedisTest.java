@@ -36,6 +36,7 @@ import dev.arthurgaspar.expeditions.queue.QueueService.Status;
         "queue.admitter-enabled=false",
         "queue.batch=3",
         "spring.kafka.listener.auto-startup=false",
+        "expeditions.auth.mode=dev-headers",
         "expeditions.admission.secret=test-admission-secret-0123456789abcdef"})
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
