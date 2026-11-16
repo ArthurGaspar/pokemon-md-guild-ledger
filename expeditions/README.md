@@ -11,7 +11,7 @@ The design (services, the queue, the ready check, compensation, event contracts 
 | 1 | `catalog`, `queue` (Redis), `reservation` (holds with expiry, ready check, compensation), outbox → Kafka | done |
 | 2 | `processing` behind Resilience4j against a deliberately flaky `dungeon-sim`, `issuance` (certificates, loot, SSE notifications), compensation on failed runs | done |
 | 3 | Keycloak, Spring Cloud Gateway with per-adventurer rate limits, OpenTelemetry traces/logs/metrics in Grafana (Tempo, Loki, Prometheus), traces carried across the outbox and the run worker | done |
-| 4 | k6: 10,000 users opening the queue at once, results here | next |
+| 4 | k6: 10,000 users opening the queue at once, with an invariant check afterwards | written, [not run yet](#load-test) |
 
 ## How a party forms
 
@@ -77,6 +77,32 @@ Each service's own port is open for debugging and still wants a token. To run on
 
 Errors are RFC 7807 problem details with a stable `code`, like the ledger API: `auth.required`, `auth.forbidden`, `admission.invalid`, `reservation.role-full`, `expedition.sold-out`, `reservation.not-in-ready-check`, `ready-check.missed`, …
 
+## Load test
+
+10,000 adventurers sign in, then all press **join** in the same second for 200 slots (50 parties of four). Each one waits in line, holds a role when admitted (switching role if theirs is full), and passes the ready check. 10% walk away from it on purpose, so parties revert and slots go back to the queue while the rush is still going. The rest give up two minutes after it sells out. The full method is in [docs/design.md](docs/design.md#phase-4-load-test).
+
+```bash
+# stack up as in Running, then, once:
+k6 run expeditions/load/seed-users.js        # racer-00001 … racer-10000 in the guild realm
+# the rush (about 8 minutes; writes expeditions/load/results/summary.md)
+k6 run expeditions/load/rush.js
+# no slot sold twice, no party over its composition, counters consistent
+sh expeditions/load/verify.sh <expedition id printed at the end>
+```
+
+Settings come from environment variables: `USERS` (10000), `PARTIES` (50), `WARMUP` seconds for the logins (120), `MISS_READY_CHECK` (0.1), `PATIENCE` seconds after selling out (120), `API`, `KEYCLOAK`. Without k6 installed, use Docker from the repository root. Tokens still say `localhost:8180`, because Keycloak's hostname is fixed:
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src -e API=http://host.docker.internal:8080 \
+  -e KEYCLOAK=http://host.docker.internal:8180 grafana/k6 run expeditions/load/rush.js
+```
+
+Each VU costs k6 a few MB, so 10,000 of them, plus the stack (about 6 GB), is a lot for one 16 GB machine. Run k6 from a second machine if you can, or scale down with `USERS=3000 PARTIES=15`, and say so next to the results. While it runs, Grafana shows it from the inside: gateway and queue latency, the circuit breaker, and the traces of the parties that set out.
+
+### Results
+
+Not run yet. Paste `expeditions/load/results/summary.md` here, together with the `verify.sh` output and a line on the machine it ran on.
+
 ## Tests
 
 ```bash
@@ -113,4 +139,5 @@ gateway/               Spring Cloud Gateway: routes, token check, rate limits (B
 docs/design.md         the design
 infra/                 PostgreSQL init, Keycloak realm
 scripts/demo.sh        the walkthrough above
+load/                  k6: seed-users.js, rush.js, verify.sql, results/
 ```

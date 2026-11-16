@@ -139,7 +139,14 @@ So a single confirm click can be followed from the gateway, through reservation,
 
 ## Phase 4: load test
 
-k6: 10,000 virtual users join one expedition within seconds of it opening, poll their position, reserve when admitted, and pass the ready check (with a share deliberately failing it). Reported in the README: join latency percentiles, time to admission, reservations per second, how many slots were sold, ready-check reverts, and that no slot was sold twice (checked with SQL after the run).
+The claim to test is that the queue protects everything behind it. 10,000 people arriving in the same second should get fast answers from Redis, while PostgreSQL only sees as many writes as there are slots.
+
+- **Users.** `load/seed-users.js` creates `racer-00001` to `racer-10000` in the realm through the admin API's partial import, in batches of 500. Keycloak's default password hashing is slow on purpose, and 10,000 logins would turn the test into a Keycloak benchmark. So the seed script switches the realm to a cheap hash for the passwords it sets. This is fine for a load realm and never for a real one.
+- **The rush** (`load/rush.js`), one VU per adventurer. The staff account publishes a fresh expedition, 50 parties of four (200 slots), opening right after a 2-minute warm-up in which the VUs sign in. Then every VU presses join within the same second, polls every ~2 s, and holds a role when admitted, falling back to another role if theirs is full. In the ready check, 10% walk away, so the revert runs under load and the reopened slots go back through the queue to people still waiting. Waiters give up 2 minutes after the expedition sells out.
+- **Measured:** latency per step (join, poll, hold, confirm), time from join to admission, time from hold to locked party, outcomes (admitted, held, role fallbacks, reverts, locked, gave up), 429s from the gateway, failure rate. 409s are counted as answers, not failures. `handleSummary` writes the tables to `load/results/summary.md`.
+- **Checked afterwards** (`load/verify.sql`): nobody holds two places, no party is over its composition, the open-slot counter matches the reservations, and every locked party is full.
+
+All of this runs on one machine, k6 included, so the numbers describe that machine, not a cluster. They should be read as "where it bends", not "what it would do in production". Thresholds: join p95 < 1 s and p99 < 2.5 s, poll p95 < 500 ms, under 1% failures.
 
 ## Event contracts
 
