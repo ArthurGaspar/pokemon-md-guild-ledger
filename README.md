@@ -171,6 +171,10 @@ web/src/api/                typed client over HTTP or the engine
 web/src/views/              screens
 ```
 
+## Guild Expeditions
+
+[`expeditions/`](expeditions/README.md) is a separate system in progress: rare guild expeditions with limited party slots that thousands of adventurers compete for. It has a virtual queue in Redis, a reservation saga over Kafka with a transactional outbox (role holds that expire, a ready check, compensation when someone fails it), and, in later phases, a deliberately unreliable dungeon simulator behind Resilience4j, Keycloak, a gateway, Grafana tracing and a 10,000-user k6 test. Design: [expeditions/docs/design.md](expeditions/docs/design.md).
+
 ## Limits
 
 - The browser build is a TypeScript port of the API, not the Java code. The contract scenario keeps them aligned on what it covers; behavior outside it could drift. Its data lives in one browser, and its password hashing only avoids storing plain text.

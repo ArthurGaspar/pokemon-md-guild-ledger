@@ -5,3 +5,5 @@ web/dist/
 *.log
 .idea/
 .vscode/
+expeditions/**/target/
+expeditions/load/results/summary.json

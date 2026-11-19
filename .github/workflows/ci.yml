@@ -30,6 +30,20 @@ jobs:
         working-directory: api
         run: sh mvnw -B verify
 
+  expeditions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # PostgresReservationTest and QueueRedisTest need Docker, so they only run here.
+      - name: Test expeditions (H2, plus PostgreSQL and Redis via Testcontainers)
+        working-directory: expeditions
+        run: sh mvnw -B verify
+
   web:
     runs-on: ubuntu-latest
     steps:
@@ -55,7 +69,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build compose images
-        run: docker compose build
+        run: |
+          docker compose build
+          docker compose -f expeditions/docker-compose.yml build
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

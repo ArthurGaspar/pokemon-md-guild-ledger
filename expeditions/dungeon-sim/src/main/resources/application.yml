@@ -1,0 +1,42 @@
+server:
+  port: ${PORT:8085}
+
+spring:
+  application:
+    name: dungeon-sim
+  threads:
+    # the sleeping is the point; virtual threads keep it from exhausting the pool
+    virtual:
+      enabled: true
+
+sim:
+  chaos:
+    latency-ms: ${SIM_LATENCY_MS:300}
+    jitter-ms: ${SIM_JITTER_MS:700}
+    error-rate: ${SIM_ERROR_RATE:0.2}
+    slow-rate: ${SIM_SLOW_RATE:0.1}
+    slow-ms: ${SIM_SLOW_MS:5000}
+    faint-rate: ${SIM_FAINT_RATE:0.25}
+    outage: ${SIM_OUTAGE:false}
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      otlp:
+        enabled: ${OTLP_EXPORT:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTLP_EXPORT:false}
+        url: ${OTLP_ENDPOINT:http://localhost:4318}/v1/metrics
+  endpoints:
+    web:
+      exposure:
+        include: health

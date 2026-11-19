@@ -1,0 +1,5 @@
+dev.arthurgaspar.expeditions.platform.events.EventsAutoConfiguration
+dev.arthurgaspar.expeditions.platform.tracing.TracingAutoConfiguration
+dev.arthurgaspar.expeditions.platform.outbox.OutboxAutoConfiguration
+dev.arthurgaspar.expeditions.platform.security.SecurityAutoConfiguration
+dev.arthurgaspar.expeditions.platform.web.WebAutoConfiguration
